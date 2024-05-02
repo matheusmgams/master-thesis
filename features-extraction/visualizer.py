@@ -42,12 +42,11 @@ df = pd.concat(dataframes, ignore_index=True)
 colunas_descartadas = [
     'id_sm', 'samplenumber', 'lotnumber', 'binnumber', 'partnumber', 
     'turnsratio', 'highdcbusvoltage', 'avgdcbusvoltage', 'lowdcbusvoltage', 'highprimarycurrent', 
-    'lowprimarycurrent', 'highsecondarycurrent', 
+    'lowprimarycurrent', 'highsecondarycurrent', 'stack',
     'lowsecondarycurrent', 'cfactor', 'percentheatorcurrent', 'targetcurrent', 'steppernumber', 
     'totalweldcount', 'stepweldcount', 'spotid', 'contactor', 'avgontime', 
     'hifreqcyclecount', 'weldstatus', 'faultcode', 'alertcode', 'raftmode', 'rd', 're', 'rp', 
     'estthickness', 'toolinteg',  'resistance_data', 'current_data', 'heat_data', 'energy_data', 
-    'station', 'stack', 'ipaddress',
     'processinteg', 'nuggetinteg', 'refrd', 'refrp', 'refenergy', 'refheat', 'progthickness', 
     'masteroffset', 'weightone', 'weighttwo', 'weightthree', 'risetime', 'ressumb', 'ressumc', 
     'ressumd', 'wqim', 'wqio', 'expcycle', 'wslide', 'percentsat', 'learnedi', 'preheattime', 
@@ -75,7 +74,9 @@ tipos_de_dados = {
     'totalheat': 'int64',
     'stepnumber': 'int64',
     'avgprimarycurrent':'int64', 
-    'avgsecondarycurrent':'int64', 
+    'avgsecondarycurrent':'int64',
+    'station': 'string',
+    'ipaddress':'string'
 }
 
 # Define os tipos de dados das colunas no DataFrame
@@ -83,6 +84,7 @@ df_final = df.astype(tipos_de_dados)
 
 # Preencher os valores da coluna stackup com base no valor da coluna stepnumber
 df_final['stackup'] = df_final.apply(lambda row: 'EMPTY' if pd.isna(row['stackup']) and row['stepnumber'] == 0 else row['stackup'], axis=1)
+df_final['stackup'] = df_final.apply(lambda row: 'EMPTY' if pd.isna(row['stackup']) and row['sequencenumber'] == 236 else row['stackup'], axis=1)
 df_final['stackup'] = df_final['stackup'].fillna('MISSING STACKUP')
 
 # Excluir 'sequencenumber' das colunas numéricas, se presente
@@ -101,6 +103,12 @@ if 'spot_id' in colunas_numericas:
 if 'stackup' in colunas_numericas:
     colunas_numericas = colunas_numericas.drop('stackup')
 
+if 'station' in colunas_numericas:
+    colunas_numericas = colunas_numericas.drop('station')
+
+if 'ipaddress' in colunas_numericas:
+    colunas_numericas = colunas_numericas.drop('ipaddress')
+
 # Aplicar a normalização min-max apenas nas colunas numéricas
 scaler = MinMaxScaler()
 dados_normalizados_numericos = scaler.fit_transform(df_final[colunas_numericas].values)
@@ -109,7 +117,7 @@ dados_normalizados_numericos = scaler.fit_transform(df_final[colunas_numericas].
 df_normalizado_numericos = pd.DataFrame(dados_normalizados_numericos, columns=colunas_numericas)
 
 # Concatenar as colunas de data e hora com as colunas normalizadas
-df_normalizado = pd.concat([df_final[colunas_datetime], df_final['sequencenumber'], df_final['stepnumber'], df_final['spot_id'], df_final['stackup'], df_normalizado_numericos], axis=1)
+df_normalizado = pd.concat([df_final[colunas_datetime], df_final['sequencenumber'], df_final['stepnumber'], df_final['spot_id'], df_final['stackup'], df_final['station'], df_final['ipaddress'], df_normalizado_numericos], axis=1)
 
 # Visualizar
 sample_data = df_normalizado.sample(frac=1)
@@ -143,7 +151,28 @@ sample_data_filtered['color'] = sample_data_filtered['color'].fillna('gray')
 sample_data_filtered['time_seconds'] = sample_data_filtered['timestamp_sm']
 
 # Cria uma lista de strings para hovertext
-hover_text = [f"SpotID: {spot_id}, \n Schedule: {sequencenumber}, \n Energy: {total_energy}, \n Time: {time_seconds}, \n Heat: {total_heat} , \n Stackup: {stackup}" for total_energy, time_seconds, total_heat, stackup, sequencenumber, spot_id in zip(sample_data_filtered['totalenergy'], sample_data_filtered['time_seconds'], sample_data_filtered['totalheat'], sample_data_filtered['stackup'], sample_data_filtered['sequencenumber'], sample_data_filtered['spot_id'])]
+# Cria uma lista de strings para hovertext
+hover_text = [
+        f"SpotID: {spot_id}\
+        <br>Schedule: {sequencenumber}\
+        <br>Energy: {total_energy}\
+        <br>Time: {time_seconds}\
+        <br>Heat: {total_heat}\
+        <br>Stackup: {stackup}\
+        <br>Station: {station}\
+        <br>IP: {ipaddress}" 
+    for total_energy, time_seconds, total_heat, stackup, sequencenumber, spot_id, station, ipaddress in zip(
+        sample_data_filtered['totalenergy'], 
+        sample_data_filtered['time_seconds'], 
+        sample_data_filtered['totalheat'], 
+        sample_data_filtered['stackup'], 
+        sample_data_filtered['sequencenumber'], 
+        sample_data_filtered['spot_id'],
+        sample_data_filtered['station'],
+        sample_data_filtered['ipaddress']
+    )
+]
+
 
 # Função para adicionar linhas que se propagam ao longo do eixo do tempo
 def add_time_lines(fig, data, enable=True, spot_id=None, sequence_number=None, stackup=None):
@@ -207,7 +236,7 @@ def add_translucent_plane(fig, data):
             y=Y,
             z=Z,
             opacity=0.5,  # Define a opacidade para tornar o plano translúcido
-            colorscale='red',  # Define a escala de cores
+            colorscale='Viridis',  # Define a escala de cores
             showscale=False,  # Esconde a escala de cores
             hoverinfo='skip'  # Não mostra o texto de hover para o plano
         ))
