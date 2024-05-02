@@ -76,12 +76,12 @@ docs/_build/
 .pybuilder/
 target/
 
-# Jupyter Notebook
-.ipynb_checkpoints
-
 # IPython
 profile_default/
 ipython_config.py
+
+# Jupyter Notebook
+.ipynb_checkpoints/
 
 # pyenv
 #   For a library or package, you might want to ignore these files since the code is
