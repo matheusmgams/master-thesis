@@ -144,6 +144,40 @@ sample_data_filtered['time_seconds'] = sample_data_filtered['timestamp_sm']
 # Cria uma lista de strings para hovertext
 hover_text = [f"SpotID: {spot_id}, \n Schedule: {sequencenumber}, \n Energy: {total_energy}, \n Time: {time_seconds}, \n Heat: {total_heat} , \n Stackup: {stackup}" for total_energy, time_seconds, total_heat, stackup, sequencenumber, spot_id in zip(sample_data_filtered['totalenergy'], sample_data_filtered['time_seconds'], sample_data_filtered['totalheat'], sample_data_filtered['stackup'], sample_data_filtered['sequencenumber'], sample_data_filtered['spot_id'])]
 
+# Função para adicionar linhas que se propagam ao longo do eixo do tempo
+def add_time_lines(fig, data, enable=True):
+    if enable:
+        # Ordena os dados pelo datetime
+        data_sorted = data.sort_values(by='timestamp_sm')
+        # Inicia o rastreamento dos pontos iniciais de cada sequência e spot_id
+        seq_spot_lines = {}
+        for index, row in data_sorted.iterrows():
+            seq_num = row['sequencenumber']
+            spot_id = row['spot_id']
+            seq_spot_id = (seq_num, spot_id)
+            if seq_num not in seq_spot_lines:
+                seq_spot_lines[seq_num] = {}
+            if spot_id not in seq_spot_lines[seq_num]:
+                seq_spot_lines[seq_num][spot_id] = []
+            seq_spot_lines[seq_num][spot_id].append((row['totalenergy'], row['time_seconds'], row['totalheat']))
+        # Adiciona linhas que se propagam ao longo do eixo do tempo para cada sequência
+        for seq_num, spot_lines in seq_spot_lines.items():
+            for spot_id, points in spot_lines.items():
+                # Ordena os pontos pelo tempo
+                points_sorted = sorted(points, key=lambda x: x[1])
+                # Coleta as coordenadas dos pontos ordenados
+                x_vals, y_vals, z_vals = zip(*points_sorted)
+                # Adiciona uma linha que passa por todos os pontos
+                fig.add_trace(go.Scatter3d(
+                    x=x_vals,
+                    y=y_vals,
+                    z=z_vals,
+                    mode='lines',
+                    line=dict(color='red', width=3),
+                    name=str(seq_num) + "_" + str(spot_id),  # Define o nome do trace como "seq_num_spot_id"
+                    hoverinfo='skip'  # Não mostra o texto de hover para as linhas
+                ))
+
 # Cria a figura 3D
 fig = go.Figure()
 
@@ -163,25 +197,14 @@ scatter = fig.add_trace(go.Scatter3d(
     hoverinfo='text'  # Mostra o texto de hover
 ))
 
+# Adiciona linhas que se propagam ao longo do eixo do tempo
+add_time_lines(fig, sample_data_filtered, enable=True)  # Habilita as linhas
+
 # Define os rótulos dos eixos
 fig.update_layout(scene=dict(
                     xaxis_title='Total Energy',
-                    yaxis_title='Time (Datetime)',
+                    yaxis_title='Time (seconds)',
                     zaxis_title='Total Heat'))
-
-# Adiciona legendas para os diferentes tipos de stackup
-legend_elements = [go.Scatter3d(
-    x=[],
-    y=[],
-    z=[],
-    mode='markers',
-    marker=dict(size=5, color=color),
-    name=stackup
-) for stackup, color in stackup_to_color.items()]
-
-# Adiciona os elementos da legenda à figura
-for trace in legend_elements:
-    fig.add_trace(trace)
 
 # Exibe a figura
 fig.show()
