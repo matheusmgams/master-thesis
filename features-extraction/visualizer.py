@@ -15,6 +15,7 @@ from matplotlib.animation import FuncAnimation
 from sklearn.preprocessing import MinMaxScaler
 from sklearn.preprocessing import StandardScaler
 
+# 113; 232; 183
 
 # Diretório onde estão os arquivos .csv
 diretorio = os.getcwd() + '/dataset-samples/'
@@ -145,10 +146,20 @@ sample_data_filtered['time_seconds'] = sample_data_filtered['timestamp_sm']
 hover_text = [f"SpotID: {spot_id}, \n Schedule: {sequencenumber}, \n Energy: {total_energy}, \n Time: {time_seconds}, \n Heat: {total_heat} , \n Stackup: {stackup}" for total_energy, time_seconds, total_heat, stackup, sequencenumber, spot_id in zip(sample_data_filtered['totalenergy'], sample_data_filtered['time_seconds'], sample_data_filtered['totalheat'], sample_data_filtered['stackup'], sample_data_filtered['sequencenumber'], sample_data_filtered['spot_id'])]
 
 # Função para adicionar linhas que se propagam ao longo do eixo do tempo
-def add_time_lines(fig, data, enable=True):
+def add_time_lines(fig, data, enable=True, spot_id=None, sequence_number=None, stackup=None):
     if enable:
+        # Filtra os dados de acordo com os filtros fornecidos
+        filtered_data = data.copy()
+        if spot_id is not None:
+            filtered_data = filtered_data[filtered_data['spot_id'] == spot_id]
+        if sequence_number is not None:
+            filtered_data = filtered_data[filtered_data['sequencenumber'] == sequence_number]
+        if stackup is not None:
+            filtered_data = filtered_data[filtered_data['stackup'] == stackup]
+        
         # Ordena os dados pelo datetime
-        data_sorted = data.sort_values(by='timestamp_sm')
+        data_sorted = filtered_data.sort_values(by='timestamp_sm')
+        
         # Inicia o rastreamento dos pontos iniciais de cada sequência e spot_id
         seq_spot_lines = {}
         for index, row in data_sorted.iterrows():
@@ -160,6 +171,7 @@ def add_time_lines(fig, data, enable=True):
             if spot_id not in seq_spot_lines[seq_num]:
                 seq_spot_lines[seq_num][spot_id] = []
             seq_spot_lines[seq_num][spot_id].append((row['totalenergy'], row['time_seconds'], row['totalheat']))
+        
         # Adiciona linhas que se propagam ao longo do eixo do tempo para cada sequência
         for seq_num, spot_lines in seq_spot_lines.items():
             for spot_id, points in spot_lines.items():
@@ -174,9 +186,31 @@ def add_time_lines(fig, data, enable=True):
                     z=z_vals,
                     mode='lines',
                     line=dict(color='red', width=3),
-                    name=str(seq_num) + "_" + str(spot_id),  # Define o nome do trace como "seq_num_spot_id"
+                    name=str(spot_id),
                     hoverinfo='skip'  # Não mostra o texto de hover para as linhas
                 ))
+
+# Função para adicionar um plano translúcido ao longo dos eixos totalenergy e totalheat
+def add_translucent_plane(fig, data):
+    # Filtra os dados pelo sequence number desejado
+    data_247 = data[data['sequencenumber'] == 247]
+    if not data_247.empty:
+        # Coleta os valores únicos de totalenergy e totalheat
+        energy_vals = data_247['totalenergy'].unique()
+        heat_vals = data_247['totalheat'].unique()
+        # Cria a grade de pontos para o plano
+        X, Y = np.meshgrid(energy_vals, heat_vals)
+        Z = np.zeros_like(X)  # Todos os pontos do plano têm z=0
+        # Adiciona a superfície plana translúcida
+        fig.add_trace(go.Surface(
+            x=X,
+            y=Y,
+            z=Z,
+            opacity=0.5,  # Define a opacidade para tornar o plano translúcido
+            colorscale='red',  # Define a escala de cores
+            showscale=False,  # Esconde a escala de cores
+            hoverinfo='skip'  # Não mostra o texto de hover para o plano
+        ))
 
 # Cria a figura 3D
 fig = go.Figure()
@@ -198,7 +232,10 @@ scatter = fig.add_trace(go.Scatter3d(
 ))
 
 # Adiciona linhas que se propagam ao longo do eixo do tempo
-add_time_lines(fig, sample_data_filtered, enable=True)  # Habilita as linhas
+add_time_lines(fig, sample_data_filtered, enable=True, spot_id=None, sequence_number=None, stackup=None)  # Habilita as linhas
+
+# Adiciona um plano translúcido ao longo dos eixos totalenergy e totalheat sempre que ocorrer o sequence number 247
+add_translucent_plane(fig, sample_data_filtered)
 
 # Define os rótulos dos eixos
 fig.update_layout(scene=dict(
